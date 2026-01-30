@@ -25,7 +25,7 @@ export default function Home() {
           <div className="nav-content">
             <Link href="/" className="logo">
               <div className="logo-icon">M</div>
-              <span className="logo-text">MDRS</span>
+              <span className="logo-text">pramaan</span>
             </Link>
 
             <ul className="nav-links">
@@ -40,6 +40,8 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             </Link>
+            <Link href="/authority">Authority Advisory</Link>
+
           </div>
         </div>
       </nav>

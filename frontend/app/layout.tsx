@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'MDRS - Multimodal Deception Risk Scorer',
+  title: 'pramaan - Multimodal Deception Risk Scorer',
   description: 'AI-Assisted Triage for Media Authenticity',
 }
 

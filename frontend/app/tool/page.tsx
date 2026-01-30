@@ -11,12 +11,12 @@ type Modality = 'image' | 'video' | 'audio' | 'text'
 // Format Gemini's markdown-style response
 const formatGeminiText = (text: string) => {
   if (!text) return null
-  
+
   // Split by ** markers and create formatted output
   const parts = text.split(/\*\*(.*?)\*\*/g)
   return (
     <>
-      {parts.map((part, i) => 
+      {parts.map((part, i) =>
         i % 2 === 0 ? (
           <span key={i}>{part}</span>
         ) : (
@@ -27,7 +27,6 @@ const formatGeminiText = (text: string) => {
   )
 }
 
-type Modality = 'image' | 'video' | 'audio' | 'text'
 
 interface Signal {
   signal: string
@@ -66,6 +65,51 @@ const modalityConfig = {
   audio: { icon: '🎧', label: 'Audio', accept: 'audio/*' },
   text: { icon: '📝', label: 'Text', accept: '' },
 }
+
+
+const adaptFactCheckToAnalysis = (data: any): AnalysisResult => {
+  const riskLevel =
+    data.verdict === 'Fake'
+      ? 'High'
+      : data.verdict === 'Legitimate'
+        ? 'Low'
+        : 'Medium'
+
+  return {
+    risk_score: data.verdict === 'Fake' ? 85 : data.verdict === 'Legitimate' ? 15 : 45,
+    risk_level: riskLevel,
+    modality: 'text',
+    signals_detected: data.claims?.length || 0,
+    signal_breakdown: (data.claims || []).map((c: any) => ({
+      signal: c.status,
+      description: c.claim,
+      confidence: c.status === 'no_evidence_found' ? 0.9 : 0.6,
+      weight: 1,
+      contribution: c.status === 'no_evidence_found' ? 1 : 0.5,
+      evidence: {},
+    })),
+    explanation: data.reason,
+    recommendation: {
+      action:
+        data.verdict === 'Fake'
+          ? 'Do not share this content'
+          : data.verdict === 'Legitimate'
+            ? 'Content appears safe to share'
+            : 'Verify with trusted sources',
+      priority: riskLevel,
+      suggested_steps: [
+        'Check official sources',
+        'Avoid forwarding unverified content',
+      ],
+      human_review_required: data.verdict !== 'Legitimate',
+    },
+    disclaimer:
+      'This analysis is AI-assisted and should not be treated as a legal determination.',
+    timestamp: new Date().toISOString(),
+    source: null,
+  }
+}
+
 
 export default function ToolPage() {
   const [activeTab, setActiveTab] = useState<Modality>('image')
@@ -132,17 +176,33 @@ export default function ToolPage() {
       if (timestamp) formData.append('timestamp', timestamp)
       if (context) formData.append('context', context)
 
-      const response = await axios.post<AnalysisResult>(
-        `${API_BASE_URL}/analyze/${activeTab}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      )
+      if (activeTab === 'text') {
+        // 🔥 FACT CHECK PIPELINE
+        const response = await axios.post(
+          `${API_BASE_URL}/fact-check`,
+          { text: textContent },
+          {
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
 
-      setResult(response.data)
+        const adapted = adaptFactCheckToAnalysis(response.data)
+        setResult(adapted)
+      } else {
+        // Existing media analysis pipeline (UNCHANGED)
+        const response = await axios.post<AnalysisResult>(
+          `${API_BASE_URL}/analyze/${activeTab}`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        )
+
+        setResult(response.data)
+      }
+
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Analysis failed. Please try again.')
       console.error('Analysis error:', err)
@@ -183,6 +243,8 @@ export default function ToolPage() {
               </svg>
               Back to Home
             </Link>
+            <Link href="/authority">Authority Advisory</Link>
+
           </div>
         </div>
       </nav>

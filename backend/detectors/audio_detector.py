@@ -32,6 +32,7 @@ class AudioDetector:
         try:
             # Get basic file properties
             file_size = os.path.getsize(audio_path)
+            
             file_name = os.path.basename(audio_path)
             
             # Signal 1: File size heuristic for audio quality

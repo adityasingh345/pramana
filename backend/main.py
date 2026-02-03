@@ -21,6 +21,12 @@ from detectors.text_detector import TextDetector
 from agents.orchestrator import fact_check_pipeline
 from schemas.request import FactCheckRequest
 
+from fastapi.responses import StreamingResponse
+from tools.evidence_builder import build_evidence_pack
+from tools.evidence_pack import generate_evidence_pdf
+from datetime import datetime
+import uuid
+
 app = FastAPI(
     title="MDRS API",
     description="Multimodal Deception Risk Scorer - Explainable Risk Assessment for Media",
@@ -36,11 +42,27 @@ ALLOWED_ORIGINS = os.getenv(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class EvidenceRequest(BaseModel):
+    text:str
+    verdict: str
+    claims: list
+    reason: str
+
+class ComplaintRequest(BaseModel):
+    content: str
+    category: str
+    platform: str = None
+    location: str = None
+
+class AnalyzeTextRequest(BaseModel):
+    text: str
+    source: Optional[str] = None
 
 # Initialize detectors and risk engine
 image_detector = ImageDetector()
@@ -261,53 +283,47 @@ def analyze_page(data: PageData):
 
 
 @app.post("/analyze/text")
-async def analyze_text(
-    text: str = Form(...),
-    source: Optional[str] = Form(None),
-    timestamp: Optional[str] = Form(None),
-    context: Optional[str] = Form(None)
-):
-    """
-    Analyze text content for deception risk signals.
-    
-    Checks for sensational language, stylometric anomalies, and misinformation patterns.
-    """
-    try:
-        if not text or len(text.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Text content cannot be empty.")
-        
-        # Run detection
-        signals = text_detector.detect(text, {
-            'source': source,
-            'timestamp': timestamp,
-            'context': context
-        })
-        
-        # Calculate risk score (async)
-        result = await risk_engine.calculate_risk(
-            modality='text',
-            signals=signals,
-            metadata={'source': source, 'timestamp': timestamp, 'context': context}
-        )
-        
-        return JSONResponse(content=result)
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-
-@app.post("/fact-check")
-def feact_check(payload: FactCheckRequest):
-    if not payload.text and not payload.url:
-        raise HTTPException(status_code=400, detail="Text or URL is required.")
-    
+async def analyze_text(data: AnalyzeTextRequest):
     result = fact_check_pipeline(
-        input_text = payload.text, 
-        url = payload.url
-        )
-        
+        input_text=data.text,
+        url=data.source if hasattr(data, "source") else None
+    )
     return result
+
+
     
+@app.post("/generate-evidence-pack")
+def create_evidence_pack(data: EvidenceRequest):
+    
+    evidence = build_evidence_pack(
+        content=data.text,
+        verdict=data.verdict,
+        claims=data.claims,
+        reason=data.reason
+    )
+
+    pdf_buffer = generate_evidence_pdf(evidence)
+
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={evidence['case_id']}.pdf"
+        }
+    )
+
+@app.post("/complaint")
+def register_complaint(data: ComplaintRequest):
+    complaint_id = f"CMP-{uuid.uuid4().hex[:6].upper()}"
+
+    # 🚨 In real system this goes to DB / authority queue
+    return {
+        "complaint_id": complaint_id,
+        "status": "Received",
+        "severity": "High" if data.category in ["Fake News", "Deepfake"] else "Medium",
+        "timestamp": datetime.utcnow().isoformat(),
+        "note": "This complaint has been forwarded for review."
+    }
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

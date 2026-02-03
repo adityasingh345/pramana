@@ -1,178 +1,115 @@
-'use client'
+// app/authority/page.tsx
 
-import { useState } from 'react'
-import Link from 'next/link'
+import Parser from "rss-parser";
 
-const mockPosts = [
-  {
-    id: 1,
-    title: 'False Rumors About Celebrity Death Circulating Online',
-    content:
-      'Cyber authorities have identified viral messages claiming the death of a public figure due to illness. After verification with official sources and family statements, this claim has been found to be false. Citizens are advised not to forward such messages.',
-    verdict: 'Fake',
-    issued_by: 'Cyber Crime Cell, India',
-    timestamp: '30 Jan 2026',
-  },
-  {
-    id: 2,
-    title: 'Fake Government Cash Transfer Messages on WhatsApp',
-    content:
-      'Messages claiming that the government is offering ₹5000 to all citizens via a registration link are false. No such scheme has been announced by any official department. These messages are part of an online scam.',
-    verdict: 'Fake',
-    issued_by: 'Ministry of Electronics & IT',
-    timestamp: '28 Jan 2026',
-  },
-  {
-    id: 3,
-    title: 'Earthquake Alert Messages – Clarification Issued',
-    content:
-      'Social media posts warning of an imminent earthquake are misleading. Earthquakes cannot be predicted with precise timing. Citizens are advised to rely only on official alerts from authorized agencies.',
-    verdict: 'Verified',
-    issued_by: 'National Disaster Management Authority',
-    timestamp: '26 Jan 2026',
-  },
-  {
-    id: 4,
-    title: 'Deepfake Video Circulating of Political Leader',
-    content:
-      'A manipulated video of a political leader is circulating online. Preliminary analysis indicates signs of synthetic media. The matter is currently under investigation.',
-    verdict: 'Under Investigation',
-    issued_by: 'Election Cyber Monitoring Cell',
-    timestamp: '25 Jan 2026',
-  },
-]
+/* ---------------- TYPES ---------------- */
 
-interface Comment {
-  id: number
-  text: string
+type NewsItem = {
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  contentSnippet?: string;
+  analysis?: {
+    verdict: "Real" | "Unverified" | "Likely Fake";
+    confidence: string;
+  };
+};
+
+/* ---------------- RSS PARSER ---------------- */
+
+const parser = new Parser({
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Next.js RSS Reader)",
+    Accept: "application/rss+xml",
+  },
+});
+
+/* ---------------- FETCH RSS ---------------- */
+
+async function getTopNews(): Promise<NewsItem[]> {
+  const RSS_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
+  const feed = await parser.parseURL(RSS_URL);
+  return feed.items.slice(0, 10);
 }
 
-export default function AuthorityPage() {
-  const [selectedPost, setSelectedPost] = useState(mockPosts[0])
-  const [comments, setComments] = useState<Comment[]>([])
-  const [input, setInput] = useState('')
+/* ---------------- PAGE ---------------- */
 
-  const addComment = () => {
-    if (!input.trim()) return
-    setComments([...comments, { id: Date.now(), text: input }])
-    setInput('')
-  }
+export default async function AuthorityPage() {
+  // 1️⃣ Fetch RSS
+  const news = await getTopNews();
+
+  // 2️⃣ Add SAFE default analysis (NO backend)
+  const enrichedNews: NewsItem[] = news.map((item) => ({
+    ...item,
+    analysis: {
+      verdict: "Unverified",
+      confidence: "0.50",
+    },
+  }));
 
   return (
-    <div style={{ maxWidth: 1100, margin: '40px auto', fontFamily: 'sans-serif' }}>
-      <Link href="/" style={{ textDecoration: 'none' }}>← Back to Home</Link>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-5xl mx-auto px-6 py-10">
 
-      {/* Authority Feed + Selected Advisory */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 2fr',
-          gap: 30,
-          marginTop: 20,
-        }}
-      >
-        {/* LEFT: Authority Feed */}
-        <div style={{ borderRight: '1px solid #eee', paddingRight: 20 }}>
-          <h3>Authority Advisories</h3>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">
+              Authority News
+            </h1>
+            <p className="text-slate-600 mt-1">
+              Top 10 updates from trusted RSS sources
+            </p>
+          </div>
 
-          {mockPosts.map((post) => (
-            <div
-              key={post.id}
-              onClick={() => setSelectedPost(post)}
-              style={{
-                padding: 12,
-                marginBottom: 10,
-                cursor: 'pointer',
-                borderRadius: 6,
-                background:
-                  selectedPost.id === post.id ? '#f3f4f6' : 'transparent',
-              }}
-            >
-              <strong>{post.title}</strong>
-              <p style={{ fontSize: 12, opacity: 0.6 }}>{post.timestamp}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* RIGHT: Selected Advisory */}
-        <div
-          style={{
-            border: '1px solid #ddd',
-            padding: 20,
-            borderRadius: 8,
-          }}
-        >
-          <h1>{selectedPost.title}</h1>
-
-          <p style={{ opacity: 0.7 }}>
-            Issued by <b>{selectedPost.issued_by}</b> • {selectedPost.timestamp}
-          </p>
-
-          <span
-            style={{
-              padding: '4px 10px',
-              borderRadius: 20,
-              fontWeight: 600,
-              background:
-                selectedPost.verdict === 'Fake'
-                  ? '#fee2e2'
-                  : selectedPost.verdict === 'Verified'
-                  ? '#dcfce7'
-                  : '#fef3c7',
-              color:
-                selectedPost.verdict === 'Fake'
-                  ? '#b91c1c'
-                  : selectedPost.verdict === 'Verified'
-                  ? '#166534'
-                  : '#92400e',
-            }}
-          >
-            {selectedPost.verdict}
+          <span className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+            ● Live RSS
           </span>
-
-          <p style={{ marginTop: 20, lineHeight: 1.6 }}>
-            {selectedPost.content}
-          </p>
         </div>
-      </div>
 
-      {/* Public Discussion */}
-      <div style={{ marginTop: 40 }}>
-        <h3>Public Discussion</h3>
-
-        <textarea
-          rows={3}
-          placeholder="Ask a question or share concerns..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          style={{ width: '100%', padding: 10 }}
-        />
-
-        <button
-          onClick={addComment}
-          style={{ marginTop: 10, padding: '8px 16px' }}
-        >
-          Post Comment
-        </button>
-
-        <div style={{ marginTop: 20 }}>
-          {comments.length === 0 && (
-            <p style={{ opacity: 0.6 }}>No comments yet.</p>
-          )}
-
-          {comments.map((c) => (
-            <div
-              key={c.id}
-              style={{
-                padding: 10,
-                borderBottom: '1px solid #eee',
-              }}
+        {/* News Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {enrichedNews.map((item, index) => (
+            <article
+              key={index}
+              className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition"
             >
-              {c.text}
-            </div>
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <h2 className="text-lg font-semibold text-slate-800 hover:text-blue-600 transition line-clamp-2">
+                  {item.title}
+                </h2>
+
+                <p className="text-xs text-slate-500 mt-2">
+                  🕒 {item.pubDate}
+                </p>
+
+                <p className="text-slate-600 mt-3 text-sm line-clamp-3">
+                  {item.contentSnippet}
+                </p>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-xs px-2 py-1 rounded font-medium bg-yellow-100 text-yellow-700">
+                    {item.analysis?.verdict} • {item.analysis?.confidence}
+                  </span>
+
+                  <span className="text-sm text-blue-600 font-medium">
+                    Read →
+                  </span>
+                </div>
+              </a>
+            </article>
           ))}
         </div>
+
+        <p className="text-center text-xs text-slate-500 mt-10">
+          Data fetched live from BBC RSS • Server-rendered
+        </p>
       </div>
     </div>
-  )
+  );
 }

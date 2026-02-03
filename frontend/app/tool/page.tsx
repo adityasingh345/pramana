@@ -67,6 +67,7 @@ const modalityConfig = {
 }
 
 
+
 const adaptFactCheckToAnalysis = (data: any): AnalysisResult => {
   const riskLevel =
     data.verdict === 'Fake'
@@ -122,6 +123,10 @@ export default function ToolPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // set evidence pack
+  const [evidencePack, setEvidencePack] = useState<any | null>(null)
+
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
@@ -145,6 +150,37 @@ export default function ToolPage() {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0])
       setError(null)
+    }
+  }
+
+  // Generate Evidence Pack
+  const generateEvidencePack = async () => {
+
+    try {
+      const res = await fetch('http://localhost:8000/generate-evidence-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textContent,
+          verdict: result?.risk_level === 'High' ? 'Fake' : 'Unverified',
+          claims: result?.signal_breakdown || [],
+          reason: result?.explanation,
+        }),
+      })
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'evidence-pack.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('Failed to download evidence pack')
+      console.error(err)
     }
   }
 
@@ -179,7 +215,7 @@ export default function ToolPage() {
       if (activeTab === 'text') {
         // 🔥 FACT CHECK PIPELINE
         const response = await axios.post(
-          `${API_BASE_URL}/fact-check`,
+          `${API_BASE_URL}/analyze/text`,
           { text: textContent },
           {
             headers: { 'Content-Type': 'application/json' },
@@ -218,6 +254,7 @@ export default function ToolPage() {
     setTimestamp('')
     setContext('')
     setResult(null)
+    setEvidencePack(null)
     setError(null)
   }
 
@@ -244,7 +281,8 @@ export default function ToolPage() {
               Back to Home
             </Link>
             <Link href="/authority">Authority Advisory</Link>
-
+            <Link href="/complaint">Complaint</Link>
+            <Link href="/legal-docket">Legal Docket</Link>
           </div>
         </div>
       </nav>
@@ -476,6 +514,39 @@ export default function ToolPage() {
                 <div className="card-header">
                   <div className="card-icon">💡</div>
                   <h3 className="card-title">Recommended Action</h3>
+                  <button
+                    onClick={generateEvidencePack}
+                    style={{
+                      marginTop: 20,
+                      padding: '12px 20px',
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🧾 Generate Evidence Pack
+                  </button>
+
+                  {evidencePack && (
+                    <div style={{ marginTop: 30 }}>
+                      <h3>📄 Evidence Pack (Preview)</h3>
+                      <pre
+                        style={{
+                          background: '#f5f5f5',
+                          padding: 16,
+                          borderRadius: 8,
+                          maxHeight: 400,
+                          overflow: 'auto',
+                          fontSize: 13,
+                        }}
+                      >
+                        {JSON.stringify(evidencePack, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+
                 </div>
                 <div className="recommendation-action">
                   {result.recommendation.action}

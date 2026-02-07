@@ -5,6 +5,7 @@ document.getElementById("analyze").onclick = async () => {
   });
 
   const tab = tabs[0];
+  
 
   chrome.tabs.sendMessage(tab.id, { type: "GET_PAGE_DATA" }, async (data) => {
 
